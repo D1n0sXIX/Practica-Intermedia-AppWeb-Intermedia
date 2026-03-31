@@ -1,0 +1,88 @@
+ARQUITECTURA DEL PROYECTO — BildyApp API
+=========================================
+
+La carpeta src/ es donde vive todo el código de la aplicación.
+Lo que está fuera (.env, package.json) es configuración del proyecto, no código de la app.
+
+
+── config/index.js
+   Centraliza toda la configuración de la app: el puerto, la URI de MongoDB, los secretos
+   de JWT, etc. En lugar de leer process.env.X desde distintos sitios del código, lo lees
+   una sola vez aquí y exportas un objeto de configuración. Si algo cambia, solo tocas un fichero.
+
+── app.js
+   Configura Express: registra los middlewares globales (helmet, cors, rate limiting...)
+   y conecta las rutas. Es la "fábrica" de la app, pero no arranca el servidor.
+
+── index.js
+   El punto de entrada. Su único trabajo es importar app.js, conectarse a MongoDB y arrancar
+   el servidor en el puerto configurado. Es lo que Node ejecuta cuando haces npm run dev.
+
+
+MODELS/
+   Los esquemas de Mongoose. Cada fichero define la forma de un documento en MongoDB y su
+   comportamiento (virtuals, indexes, métodos).
+   - User.js    → define cómo es un usuario
+   - Company.js → define cómo es una compañía
+
+
+CONTROLLERS/
+   La lógica de negocio de cada endpoint. Recibe req y res, hace lo que tenga que hacer
+   (consultar la base de datos, generar un token...) y devuelve la respuesta.
+   No sabe nada de rutas.
+
+
+ROUTES/
+   Define qué función del controlador se ejecuta para cada URL y método HTTP.
+   Su trabajo es únicamente conectar rutas con controladores y middlewares.
+
+
+MIDDLEWARE/
+   Funciones que se ejecutan entre la petición y el controlador:
+
+   - auth.middleware.js  → Verifica que el token JWT sea válido. Si no lo es, corta
+                           la petición antes de llegar al controlador.
+
+   - role.middleware.js  → Comprueba que el usuario tenga el rol necesario (admin/guest).
+
+   - validate.js         → Ejecuta el schema Zod sobre el body de la petición.
+                           Si falla la validación, devuelve un error 400 sin llegar
+                           al controlador.
+
+   - upload.js           → Configura Multer para gestionar la subida de imágenes
+                           (el logo de la compañía).
+
+   - error-handler.js    → Middleware centralizado de errores. Todos los errores de la app
+                           acaban aquí y él decide qué respuesta enviar al cliente.
+
+
+UTILS/
+   - AppError.js → Clase de error personalizada. En lugar de lanzar errores genéricos
+                   de JavaScript, lanzas un AppError que ya lleva el código HTTP, el mensaje
+                   y un código de error. El error handler lo recoge y lo formatea.
+
+
+VALIDATORS/
+   - user.validator.js → Los schemas Zod para validar los datos que llegan en las peticiones
+                         (body del registro, del login, del onboarding...).
+                         Los define aquí y los usa el middleware validate.js.
+
+
+SERVICES/
+   - notification.service.js → Un EventEmitter que emite eventos del ciclo de vida del usuario:
+                                user:registered, user:verified, user:invited, user:deleted.
+                                Los controladores emiten el evento, y este servicio tiene los
+                                listeners que reaccionan (por ahora, haciendo log por consola).
+
+
+FUERA DE src/
+   - .env         → Variables de entorno reales (MongoDB URI, secretos JWT...).
+                    NUNCA se sube a GitHub.
+
+   - .env.example → Copia del .env sin valores reales. Sirve para que cualquiera que clone
+                    el repo sepa qué variables necesita configurar.
+
+   - .gitignore   → Le dice a Git qué ficheros ignorar.
+                    Como mínimo: node_modules/, .env y uploads/
+
+   - uploads/     → Donde se guardarán los logos de las compañías cuando los suban.
