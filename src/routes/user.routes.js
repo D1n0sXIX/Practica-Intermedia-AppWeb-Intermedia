@@ -1,11 +1,12 @@
 import { Router } from 'express';
+import { register } from '../controllers/user.controller.js';
+import { validate } from '../middleware/validate.js';
+import { registerSchema } from '../validators/user.validator.js';
 
 const router = Router();
 
 // Endpoints
-router.post('/register', (req, res) => {
-    res.json({ message: 'Usuario registrado' });
-});
+router.post('/register', validate(registerSchema), register);
 
 router.put('/validation', (req, res) => {
     res.json({ message: 'Usuario validado' });

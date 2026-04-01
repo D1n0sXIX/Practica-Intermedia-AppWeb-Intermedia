@@ -4,9 +4,9 @@ import mongoose from "mongoose";
 const userSchema = new mongoose.Schema({
     email : { type: String, required: true, unique: true },
     password : { type: String, required: true },
-    name : { type: String, required: true },
-    lastName : { type: String, required: true },
-    nif : { type: String, required: true },
+    name : { type: String },
+    lastName : { type: String},
+    nif : { type: String},
     role : { type: String, required: true, enum: ['admin', 'guest'], default: 'admin', index: true },
     status : { type: String, required: true, enum: ['pending', 'verified'], default: 'pending' , index: true },
     verificationCode : { type: String, required: true },
