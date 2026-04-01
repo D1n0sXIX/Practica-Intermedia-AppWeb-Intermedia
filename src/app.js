@@ -2,17 +2,18 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import mongoSanitize from 'express-mongo-sanitize';
 import { config } from './config/index.js';
 import userRouter from './routes/user.routes.js';
-import { errorHandler } from './middleware/error-handler.js'
+import { errorHandler } from './middleware/error-handler.js';
+import { sanitizeBody } from './middleware/sanitize.middleware.js';;
 
 const app = express();
+
 // Añadimos middlewares
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
-app.use(mongoSanitize());
+app.use(sanitizeBody);
 
 const limiter = rateLimit({
   windowMs: config.rateLimitWindow,
