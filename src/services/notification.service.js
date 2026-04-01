@@ -1,0 +1,22 @@
+import { EventEmitter } from 'node:events'
+
+const emitter = new EventEmitter()
+
+// Listeners
+emitter.on('user:registered', (data) => {
+    console.log('Usuario registrado:', data)
+})
+
+emitter.on('user:verified', (data) => {
+    console.log('Usuario verificado:', data)
+})
+
+emitter.on('user:invited', (data) => {
+    console.log('Usuario invitado:', data)
+})
+
+emitter.on('user:deleted', (data) => {
+    console.log('Usuario eliminado:', data)
+})
+
+export default emitter
