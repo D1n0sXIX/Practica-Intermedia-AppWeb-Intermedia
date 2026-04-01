@@ -43,3 +43,41 @@ export const register = async (req, res, next) => {
     }
 
 };
+
+export const verifyEmail = async (req, res, next) => {
+    try {
+        // Extraemos userId del token y el codigo del body
+        const { userId } = req.user;
+        const { code } = req.body;
+
+        // Buscamos el usuario y comprobamos el codigo
+        const user = await User.findById(userId);
+        
+        // Hacemos las comprobaciones
+        // Si existe
+        if (!user) {
+            return next(AppError.notFound('Usuario no encontrado'));
+        }
+        // Si su numero de intentos es 0
+        if (user.verificationAttempts <= 0) {
+            return next(AppError.tooManyRequests());
+        }
+        // Si el codigo no coincide
+        if (code !== user.verificationCode) {
+            user.verificationAttempts -= 1;
+            await user.save();
+            return next(AppError.badRequest('Código incorrecto. Intentos restantes: ' + user.verificationAttempts));
+        }
+        
+        if (code == user.verificationCode) {
+            user.status = 'verified';
+            await user.save();
+            notificationService.emit('user:verified', user);
+            return res.json({ message: 'Email verificado correctamente' });
+        }
+        
+    } catch (error) {
+        next(error);
+    }
+};
+

@@ -1,16 +1,15 @@
 import { Router } from 'express';
-import { register } from '../controllers/user.controller.js';
+import { register , verifyEmail} from '../controllers/user.controller.js';
 import { validate } from '../middleware/validate.js';
-import { registerSchema } from '../validators/user.validator.js';
+import { registerSchema, verificationSchema } from '../validators/user.validator.js'
+import { authMiddleware } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
 // Endpoints
 router.post('/register', validate(registerSchema), register);
 
-router.put('/validation', (req, res) => {
-    res.json({ message: 'Usuario validado' });
-});
+router.put('/validation', authMiddleware, validate(verificationSchema), verifyEmail);
 
 router.post('/login', (req, res) => {
     res.json({ message: 'Usuario logueado' });
