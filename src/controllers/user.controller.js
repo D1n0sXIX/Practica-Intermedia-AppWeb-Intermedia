@@ -81,3 +81,41 @@ export const verifyEmail = async (req, res, next) => {
     }
 };
 
+export const login = async (req, res, next) => {
+    try {
+        // extraemos email y password del body + validacion
+        const { email, password } = req.body;
+        const existingUser = await User.findOne({ email });
+        if (!existingUser) {
+            return next(AppError.notFound('Credencial'));
+        }
+
+        // Verificamos la contraseña
+        const isMatch = await bcrypt.compare(password, existingUser.password);
+        if (!isMatch) {
+            return next(AppError.unauthorized('Contraseña incorrecta'));
+        }
+
+        // Token de acceso y de refresh
+        const accessToken = jsonwebtoken.sign({ userId: existingUser._id, role: existingUser.role }, config.accessTokenSecret, { expiresIn: config.accessTokenExpiration });
+        const refreshToken = jsonwebtoken.sign({ userId: existingUser._id, role: existingUser.role }, config.refreshTokenSecret, { expiresIn: config.refreshTokenExpiration });
+
+        // Se guarda el usuario
+        notificationService.emit('user:login', existingUser);
+
+        // devolvemos datos del usuario + tokens
+        res.status(200).json({
+            user: {
+                id: existingUser._id,
+                email: existingUser.email,
+                status: existingUser.status,
+                role: existingUser.role
+            },
+            accessToken,
+            refreshToken
+        });
+    } catch (error) {
+        next(error);
+    }
+
+};

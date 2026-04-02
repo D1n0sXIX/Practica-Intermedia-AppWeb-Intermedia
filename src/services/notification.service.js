@@ -19,4 +19,9 @@ emitter.on('user:deleted', (data) => {
     console.log('Usuario eliminado:', data)
 })
 
+// Add personal
+emitter.on('user:login', (data) => {
+    console.log('Usuario ha iniciado sesión:', data)
+})
+
 export default emitter
