@@ -119,3 +119,35 @@ export const login = async (req, res, next) => {
     }
 
 };
+
+export const updatePersonalData = async (req, res, next) => {
+    try {
+        // obtenemos JWT y validamos
+        const { userId } = req.user;
+        const { name, lastName, nif } = req.body;
+
+        // buscamos el usuario por id
+        const user = await User.findByIdAndUpdate(userId, { name, lastName, nif }, { new: true });
+        if (!user) {
+            return next(AppError.notFound('Usuario'));
+        }
+        notificationService.emit('user:updated', user);
+
+        // Devolvemos datos actualizados
+        res.json({
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                lastName: user.lastName,
+                nif: user.nif,
+                status: user.status,
+            }
+        });
+
+        
+
+    }    catch (error) {
+        next(error);
+    }
+};

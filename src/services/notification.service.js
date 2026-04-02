@@ -24,4 +24,8 @@ emitter.on('user:login', (data) => {
     console.log('Usuario ha iniciado sesión:', data)
 })
 
+emitter.on('user:updated', (data) => {
+    console.log('Usuario actualizado:', data)
+})
+
 export default emitter
