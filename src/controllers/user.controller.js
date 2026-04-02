@@ -4,6 +4,7 @@ import jsonwebtoken from 'jsonwebtoken';
 import { config } from '../config/index.js';
 import { AppError } from '../utils/AppError.js';
 import notificationService from '../services/notification.service.js';
+import Company from '../models/Company.js'
 
 export const register = async (req, res, next) => {
     try {
@@ -148,6 +149,62 @@ export const updatePersonalData = async (req, res, next) => {
         
 
     }    catch (error) {
+        next(error);
+    }
+};
+
+export const updateCompany = async (req, res, next) => {
+    try {
+        // token 
+        const { userId } = req.user;
+        const { cif, name, address, isFreelance } = req.body;
+
+        // sacamos el usuario del token
+        const user = await User.findById(userId);
+        if (!user) {
+            return next(AppError.notFound('Usuario'));
+        }
+        // Segun el CIF si es freelance
+        if (isFreelance) {
+            let company = await Company.findOne({ cif: user.nif })
+            if (!company) {
+                company = new Company({ 
+                    owner: userId, 
+                    name: user.name, 
+                    cif: user.nif, 
+                    address: user.address, 
+                    isFreelance: true 
+                })
+                await company.save()
+            }
+            user.company = company._id
+            await user.save()
+        }
+        // Si no, se busca por el cif
+        else {
+            let company = await Company.findOne({ cif })
+            if (!company) {
+                company = new Company({ owner: userId, name, cif, address })
+                await company.save()
+            } else {
+                user.role = 'guest'
+            }
+            user.company = company._id
+            await user.save()
+        }
+        
+        // Datos actualizados
+        notificationService.emit('user:updated', user);
+        res.json({
+            user: {
+                id: user._id,
+                email: user.email,
+                role: user.role,
+                company: user.company
+            }
+        });
+
+    } catch (error) {
         next(error);
     }
 };

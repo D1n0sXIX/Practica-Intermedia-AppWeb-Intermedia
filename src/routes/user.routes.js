@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { register , verifyEmail, login, updatePersonalData} from '../controllers/user.controller.js';
+import { register , verifyEmail, login, updatePersonalData, updateCompany} from '../controllers/user.controller.js';
 import { validate } from '../middleware/validate.js';
-import { registerSchema, verificationSchema , loginSchema, personalDataSchema} from '../validators/user.validator.js'
+import { registerSchema, verificationSchema , loginSchema, personalDataSchema, companySchema} from '../validators/user.validator.js'
 import { authMiddleware } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -15,9 +15,8 @@ router.post('/login', validate(loginSchema), login);
 
 router.put('/register', authMiddleware, validate(personalDataSchema), updatePersonalData);
 
-router.patch('/company', (req, res) => {
-    res.json({ message: 'Empresa actualizada' });
-});
+router.patch('/company', authMiddleware, validate(companySchema), updateCompany);
+
 router.patch('/logo', (req, res) => {
     res.json({ message: 'Logo actualizado' });
 });
