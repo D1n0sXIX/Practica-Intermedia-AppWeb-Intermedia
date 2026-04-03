@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { register , verifyEmail, login, updatePersonalData, updateCompany, updateLogo, getUser, refreshToken, logout, deleteUser} from '../controllers/user.controller.js';
+import { register , verifyEmail, login, updatePersonalData, updateCompany, updateLogo, getUser, refreshToken, logout, deleteUser, inviteUser} from '../controllers/user.controller.js';
 import { validate } from '../middleware/validate.js';
 import { registerSchema, verificationSchema , loginSchema, personalDataSchema, companySchema} from '../validators/user.validator.js'
 import { authMiddleware } from '../middleware/auth.middleware.js';
-import upload from '../middleware/upload.js'
-
+import upload from '../middleware/upload.js';
+import { requieredRole } from '../middleware/role.middleware.js';
 
 const router = Router();
 
@@ -34,10 +34,7 @@ router.put('/password', (req, res) => {
     res.json({ message: 'Contraseña actualizada' });
 });
 
-router.post('/invite', (req, res) => {
-    res.json({ message: 'Invitación enviada' });
-});
-
+router.post('/invite', authMiddleware, requieredRole('admin'), inviteUser)
 
 export default router;
 

@@ -319,3 +319,42 @@ export const deleteUser = async (req, res, next) => {
         next(error);
     }
 };
+
+export const inviteUser = async (req, res, next) => {
+    try {
+        // Requiere token JWT + rol admin
+        const { userId, role } = req.user;
+        const admin = await User.findById(userId)
+
+        if (role !== 'admin') {
+            return next(AppError.forbidden('Acceso prohibido'));
+        }
+
+        // Extraemos email del body
+        const { email, password } = req.body;
+        // Creamos un nuevo usuario con el mismo company que el admin y el rol guest
+        const existingUser = await User.findOne({ email });
+        // Comprobante de seguridad
+        if (existingUser) {
+            return next(AppError.conflict('Email ya registrado'));
+        }
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = new User({ email, password: hashedPassword, role: 'guest', status: 'verified', company: admin.company, verificationCode: '000000' });
+        
+        // Guardamos el usuario y emitimos evento
+        await user.save();
+        notificationService.emit('user:invited', user);
+
+        // Devolvemos datos del usuario
+        res.status(201).json({
+            user: {
+                id: user._id,
+                email: user.email,
+                role: user.role,
+                company: user.company
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
