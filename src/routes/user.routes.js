@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register , verifyEmail, login, updatePersonalData, updateCompany, updateLogo, getUser, refreshToken, logout} from '../controllers/user.controller.js';
+import { register , verifyEmail, login, updatePersonalData, updateCompany, updateLogo, getUser, refreshToken, logout, deleteUser} from '../controllers/user.controller.js';
 import { validate } from '../middleware/validate.js';
 import { registerSchema, verificationSchema , loginSchema, personalDataSchema, companySchema} from '../validators/user.validator.js'
 import { authMiddleware } from '../middleware/auth.middleware.js';
@@ -28,9 +28,7 @@ router.post('/refresh', refreshToken);
 
 router.post('/logout', authMiddleware, logout);
 
-router.delete('/', (req, res) => {
-    res.json({ message: 'Usuario eliminado' });
-});
+router.delete('/', authMiddleware, deleteUser);
 
 router.put('/password', (req, res) => {
     res.json({ message: 'Contraseña actualizada' });

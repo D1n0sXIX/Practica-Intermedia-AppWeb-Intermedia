@@ -294,3 +294,28 @@ export const logout = async (req, res, next) => {
         next(error)
     }
 }
+
+export const deleteUser = async (req, res, next) => {
+    try {
+        // Segun el parametro query ?soft=true se borra de forma suave o dura
+        const { userId } = req.user;
+        const { soft } = req.query;
+        if (soft === 'true') {
+            const user = await User.findByIdAndUpdate(userId, { deleted: true }, { returnDocument: 'after' });
+            if (!user) {
+                return next(AppError.notFound('Usuario'));
+            }
+            notificationService.emit('user:deleted', user);
+            res.json({ message: 'Usuario eliminado correctamente' });
+        } else {
+            const user = await User.findByIdAndDelete(userId);
+            if (!user) {
+                return next(AppError.notFound('Usuario'));
+            }
+            notificationService.emit('user:deleted', user);
+            res.json({ message: 'Usuario eliminado correctamente' });
+        }
+    } catch (error) {
+        next(error);
+    }
+};
