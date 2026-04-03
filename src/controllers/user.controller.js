@@ -5,7 +5,6 @@ import { config } from '../config/index.js';
 import { AppError } from '../utils/AppError.js';
 import notificationService from '../services/notification.service.js';
 import Company from '../models/Company.js'
-import { tr } from 'zod/v4/locales';
 
 export const register = async (req, res, next) => {
     try {
@@ -268,4 +267,30 @@ export const getUser = async (req, res, next) => {
     }    catch (error) {
         next(error);
     }
-}; 
+};
+
+export const refreshToken = async (req, res, next) => {
+    try {
+        // obtenemos el refresh y comprobamos
+        const { refreshToken } = req.body;
+        const payload = jsonwebtoken.verify(refreshToken, config.refreshTokenSecret);
+
+        // Generamos nuevos tokens
+        const accessToken = jsonwebtoken.sign({ userId: payload.userId, role: payload.role }, config.accessTokenSecret, { expiresIn: config.accessTokenExpiration });
+        const newRefreshToken = jsonwebtoken.sign({ userId: payload.userId, role: payload.role }, config.refreshTokenSecret, { expiresIn: config.refreshTokenExpiration });
+
+        // Devolvemos los nuevos tokens
+        res.json({ accessToken, refreshToken: newRefreshToken });
+    }   catch (error) {
+        next(AppError.unauthorized('Refresh token inválido'));
+    }
+};
+
+export const logout = async (req, res, next) => {
+    try {
+        notificationService.emit('user:logout', req.user)
+        res.json({ message: 'Sesión cerrada correctamente' })
+    } catch (error) {
+        next(error)
+    }
+}

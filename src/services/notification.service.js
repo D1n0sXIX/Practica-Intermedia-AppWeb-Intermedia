@@ -32,5 +32,8 @@ emitter.on('user:fetched', (data) => {
     console.log('Usuario consultado:', data)
 })
 
+emitter.on('user:logout', (data) => {
+    console.log('Usuario ha cerrado sesión:', data)
+})
 
 export default emitter
