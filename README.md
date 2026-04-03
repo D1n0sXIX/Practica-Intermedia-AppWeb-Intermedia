@@ -1,260 +1,122 @@
-# Práctica Intermedia: Gestión de Usuarios — BildyApp
+# BildyApp API — Práctica Intermedia / Intermediate Practice
+
+<details>
+<summary>Español</summary>
 
 ## Descripción
 
-Desarrolla el backend de **BildyApp**, una API REST con Node.js y Express para la gestión de albaranes de obra. En esta práctica intermedia implementarás el módulo completo de **gestión de usuarios**, incluyendo registro, autenticación, onboarding y administración de cuentas.
-
-Esta práctica evalúa los conocimientos adquiridos en los **temas T1 a T7** del curso.
+API REST para la gestión de usuarios de BildyApp, una aplicación de albaranes de obra. Implementa el módulo completo de usuarios: registro, autenticación, onboarding, gestión de sesión y administración de cuentas.
 
 ---
 
-## Tecnologías requeridas
+## Tecnologías utilizadas
 
-| Categoría | Tecnología | Tema |
-|-----------|------------|------|
-| Runtime | Node.js 22+ con ESM (`"type": "module"`) | T1 |
-| Patrones async | async/await, Promises | T2 |
-| Protocolo | HTTP, códigos de estado, cabeceras | T3 |
-| Framework | Express 5, middleware | T4 |
-| Validación | Zod | T4, T6 |
-| Base de datos | MongoDB Atlas + Mongoose | T5 |
-| Arquitectura | MVC (models, controllers, routes) | T5 |
-| Subida de archivos | Multer | T5 |
-| Errores | Clase AppError, middleware centralizado | T6 |
-| Seguridad | Helmet, rate limiting, sanitización NoSQL | T6 |
-| Soft delete | Borrado lógico con Mongoose | T6 |
-| Autenticación | JWT (jsonwebtoken) + bcryptjs | T7 |
-| Roles | Sistema de roles (admin, guest) | T7 |
+| Categoría | Tecnología |
+|-----------|------------|
+| Runtime | Node.js 22+ con ESM (`"type": "module"`) |
+| Framework | Express 5 |
+| Base de datos | MongoDB Atlas + Mongoose |
+| Validación | Zod (con `.transform()` y `.refine()`) |
+| Autenticación | JWT (jsonwebtoken) + bcryptjs |
+| Subida de archivos | Multer |
+| Seguridad | Helmet, express-rate-limit, sanitización NoSQL |
+| Eventos | EventEmitter (Node.js nativo) |
+| Errores | Clase AppError + middleware centralizado |
 
 ---
 
-## Modelos de datos
+## Requisitos previos
 
-### Relación entre entidades
-
-```
-┌──────────┐          ┌──────────┐
-│ Company  │◄──owner──│   User   │
-│          │──1:N────►│          │
-└──────────┘          └──────────┘
-     │
-     │  (en la práctica final)
-     ├──1:N──► Client
-     ├──1:N──► Project
-     └──1:N──► DeliveryNote
-```
-
-Una **Company** puede tener N usuarios. El usuario que la crea es el `owner` (role `admin`). Los usuarios que se unen a una compañía existente (porque el CIF ya está registrado) o los invitados se asocian a la misma Company con role `guest`. Un autónomo simplemente crea una Company donde él es el único miembro, con `isFreelance: true` y el CIF igual a su NIF.
-
-### Company (Compañía)
-
-```javascript
-{
-  owner: ObjectId,           // ref: 'User' — admin que creó la compañía
-  name: String,              // Nombre de la empresa
-  cif: String,               // CIF de la empresa
-  address: {
-    street: String,
-    number: String,
-    postal: String,
-    city: String,
-    province: String
-  },
-  logo: String,              // URL del logo (imagen subida con Multer)
-  isFreelance: Boolean,      // true si es autónomo (1 sola persona)
-  deleted: Boolean,          // Soft delete
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-### User (Usuario)
-
-```javascript
-{
-  email: String,             // Único (index: unique), validado con Zod
-  password: String,          // Cifrada con bcrypt
-  name: String,              // Nombre
-  lastName: String,          // Apellidos
-  nif: String,               // Documento de identidad
-  role: 'admin' | 'guest',            // Por defecto: 'admin'
-  status: 'pending' | 'verified',     // Estado de verificación del email (index)
-  verificationCode: String,  // Código aleatorio de 6 dígitos
-  verificationAttempts: Number, // Intentos restantes (máximo 3)
-  company: ObjectId,         // ref: 'Company' — se asigna en el onboarding (index)
-  address: {
-    street: String,
-    number: String,
-    postal: String,
-    city: String,
-    province: String
-  },
-  deleted: Boolean,          // Soft delete
-  createdAt: Date,
-  updatedAt: Date
-}
-
-// Virtual (no se almacena, se calcula):
-// fullName → name + ' ' + lastName
-```
-
-> **Indexes recomendados:** `email` (unique), `company`, `status`, `role`. Los indexes aceleran las consultas frecuentes (T5).
-
-> **Virtual `fullName`:** Define un virtual en Mongoose que devuelva `name + ' ' + lastName`. Asegúrate de configurar `toJSON: { virtuals: true }` en el schema (T5).
-
-> **Nota sobre el autónomo:** Cuando un usuario es autónomo, crea una Company con `isFreelance: true`. Los datos de la compañía (nombre, CIF, dirección) serán los mismos datos personales del usuario. La relación sigue siendo `User.company → Company._id`, simplemente la Company tiene un solo miembro.
+- Node.js 22 o superior
+- Cuenta en MongoDB Atlas con un cluster creado
 
 ---
 
-## Endpoints a implementar
+## Instalación
 
-### 1) Registro de usuario — `POST /api/user/register` (1 punto)
+```bash
+# 1. Clonar el repositorio
+git clone <URL_DEL_REPO>
+cd practica-intermedia
 
-Especificaciones técnicas:
-- Validar con **Zod** que el email sea un email válido. Usar `.transform()` para normalizar el email a minúsculas.
-- Validar con **Zod** que la contraseña contenga al menos 8 caracteres.
-- No se podrá registrar con un email ya existente (y validado) en la base de datos (devuelve un error **409 Conflict**).
-- La contraseña se guardará **cifrada** en base de datos con **bcryptjs**.
-- Se generará un **código aleatorio de 6 dígitos** y un número máximo de intentos (3) en base de datos para la posterior validación del email.
-- El usuario se crea con role **`admin`** por defecto (podrá cambiar a `guest` durante el onboarding de compañía; ver punto 4).
-- La respuesta devolverá los datos del usuario (email, status y role), un **access token JWT** (corta duración, p. ej. 15 min) y un **refresh token** (larga duración, p. ej. 7 días).
+# 2. Instalar dependencias
+npm install
 
-### 2) Validación del email — `PUT /api/user/validation` (1 punto)
-
-Especificaciones técnicas:
-- Requiere el **token JWT** recibido en la respuesta del registro (cabecera `Authorization: Bearer <token>`).
-- Validar con **Zod** que el código tenga exactamente 6 dígitos.
-- En el cuerpo de la petición se enviará el `code` (en teoría llegaría por correo; por ahora, consúltalo directamente en la base de datos para ese usuario).
-- Si el código recibido es correcto (coincide con el almacenado en base de datos para el usuario identificado por el token JWT), se modifica el `status` a `verified` y se devuelve un ACK.
-- Si el código es incorrecto, se decrementa el contador de intentos y se devuelve un error de cliente **4XX**.
-- Si se agotan los intentos, se devuelve un error **429 Too Many Requests**.
-
-### 3) Login — `POST /api/user/login` (1 punto)
-
-Especificaciones técnicas:
-- Validar con **Zod** el email y la contraseña enviados en el cuerpo de la petición.
-- Si las credenciales son válidas, devolver los datos del usuario, un **access token** y un **refresh token**.
-- Si las credenciales son incorrectas, devolver un error **401 Unauthorized**.
-
-### 4) Onboarding — Datos personales y de compañía
-
-**Datos personales** — `PUT /api/user/register` (1 punto):
-- Requiere token JWT.
-- Validar con **Zod** los datos del cuerpo (nombre, apellidos y NIF).
-- Actualizar el usuario con estos datos.
-
-**Datos de la compañía** — `PATCH /api/user/company` (1 punto):
-- Requiere token JWT.
-- Validar con **Zod** los datos (nombre, CIF, dirección, `isFreelance`).
-- **Lógica de asignación según el CIF:**
-  - Si **no existe** ninguna Company con ese CIF → se crea un nuevo documento **Company**, el usuario se asigna como `owner` y mantiene su role `admin`.
-  - Si **ya existe** una Company con ese CIF → el usuario se une a esa compañía existente y su role cambia a `guest`.
-- Si el usuario indica que es autónomo (`isFreelance: true`), el CIF de la compañía será su propio NIF y los datos de la compañía se rellenan automáticamente con sus datos personales (nombre, NIF, dirección).
-
-### 5) Logo de la compañía — `PATCH /api/user/logo` (1 punto)
-
-Especificaciones técnicas:
-- Requiere token JWT. El usuario debe tener una compañía asociada.
-- Recibe una imagen como logo mediante `multipart/form-data` (usa **Multer**).
-- Controla el tamaño máximo del archivo (por ejemplo, 5 MB).
-- Guarda el logo en disco (carpeta `uploads/`) o en la nube, y almacena la URL en el campo `logo` del documento **Company** del usuario.
-
-### 6) Obtener usuario — `GET /api/user` (1 punto)
-
-Especificaciones técnicas:
-- Requiere token JWT.
-- Devuelve los datos del usuario autenticado.
-- Usa **`populate`** para incluir los datos completos de la Company asociada (no solo el ObjectId).
-- El virtual `fullName` debe aparecer en la respuesta JSON.
-
-### 7) Gestión de sesión — `POST /api/user/refresh` y `POST /api/user/logout` (1 punto)
-
-**Refresh token** — `POST /api/user/refresh`:
-- Recibe el `refreshToken` en el cuerpo de la petición.
-- Si el refresh token es válido y no ha expirado, devuelve un nuevo **access token** (y opcionalmente rota el refresh token).
-- Si el refresh token es inválido o ha expirado, devuelve un error **401 Unauthorized**.
-
-**Logout** — `POST /api/user/logout`:
-- Requiere token JWT.
-- Invalida el refresh token del usuario (por ejemplo, eliminándolo de la base de datos o añadiéndolo a una lista negra).
-- Devuelve un ACK confirmando el cierre de sesión.
-
-### 8) Eliminar usuario — `DELETE /api/user` (1 punto)
-
-Especificaciones técnicas:
-- Requiere token JWT.
-- Soporta hard o soft delete en función del parámetro query `?soft=true`.
-- El soft delete utiliza el patrón de borrado lógico (T6).
-
-### 9) Cambiar contraseña — `PUT /api/user/password` (1 punto)
-
-Especificaciones técnicas:
-- Requiere token JWT.
-- Recibe en el cuerpo la contraseña actual y la nueva contraseña.
-- Usar **Zod `.refine()`** para validar que la nueva contraseña sea diferente de la actual.
-- Verificar que la contraseña actual es correcta antes de actualizarla.
-
-### 10) Invitar compañeros — `POST /api/user/invite` (1 punto)
-
-Especificaciones técnicas:
-- Requiere token JWT. Solo usuarios con role `admin` pueden invitar.
-- Se crea un nuevo usuario con los datos proporcionados y se le asigna el mismo `company` (ObjectId) del usuario que invita, con role `guest`.
-- Se emite un **evento** `user:invited` mediante EventEmitter (ver requisitos técnicos).
+# 3. Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus valores reales
+```
 
 ---
 
-## Requisitos técnicos obligatorios
+## Variables de entorno
 
-Estos requisitos reflejan los conceptos aprendidos en T1-T7 y son de **cumplimiento obligatorio**:
+Crea un fichero `.env` en la raíz del proyecto con las siguientes variables:
 
-| Requisito | Tema | Descripción |
-|-----------|------|-------------|
-| ESM | T1 | Usar `"type": "module"` en `package.json` y sentencias `import`/`export` |
-| Node.js 22+ | T1 | Usar `--watch` y `--env-file=.env` en los scripts de desarrollo |
-| Async/await | T2 | Todas las operaciones asíncronas deben usar `async`/`await` |
-| EventEmitter | T2 | Implementar un servicio de eventos que emita notificaciones en el ciclo de vida del usuario: `user:registered`, `user:verified`, `user:invited`, `user:deleted`. Registrar listeners que hagan log de cada evento por consola (en la práctica final se enviarán a Slack) |
-| Arquitectura MVC | T5 | Organizar el código en `models/`, `controllers/`, `routes/`, `middleware/`, `validators/` |
-| Validación Zod | T4, T6 | Todos los cuerpos de petición deben validarse con esquemas Zod. Usar `.transform()` para normalizar datos (p. ej. email a minúsculas, trim de strings) y `.refine()` para validaciones cruzadas (p. ej. nueva contraseña ≠ actual) |
-| MongoDB + Mongoose | T5 | Usar MongoDB Atlas como base de datos y Mongoose como ODM |
-| Populate | T5 | Usar `populate` en las consultas que devuelvan referencias a otros modelos (p. ej. User → Company) |
-| Virtuals | T5 | Definir al menos un virtual (`fullName`) en el modelo User. Configurar `toJSON: { virtuals: true }` |
-| Indexes | T5 | Definir indexes en los campos de consulta frecuente: `email` (unique), `company`, `status`, `role` |
-| AppError | T6 | Implementar la clase `AppError` con métodos factoría y un middleware centralizado de errores |
-| Seguridad | T6 | Incluir Helmet, rate limiting (`express-rate-limit`) y sanitización (`express-mongo-sanitize`) |
-| JWT + bcrypt | T7 | Access token de corta duración + refresh token de larga duración. Contraseñas cifradas con bcryptjs |
-| Roles | T7 | Middleware de autorización basado en roles |
+```env
+MONGO_URI=mongodb+srv://<usuario>:<contraseña>@<cluster>.mongodb.net/<nombre_bd>
+SERVER_PORT=3000
+ACCESS_TOKEN_SECRET=<cadena_aleatoria_larga>
+REFRESH_TOKEN_SECRET=<cadena_aleatoria_distinta>
+ACCESS_TOKEN_EXPIRATION=15m
+REFRESH_TOKEN_EXPIRATION=7d
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW=900000
+```
+
+Para generar los secretos JWT de forma segura:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
 
 ---
 
-## Estructura esperada del proyecto
+## Ejecución
+
+```bash
+npm run dev
+```
+
+Al arrancar correctamente verás:
+```
+Conexión exitosa a MongoDB
+Servidor corriendo en el puerto 3000
+```
+
+---
+
+## Estructura del proyecto
 
 ```
-bildyapp-api/
+practica-intermedia/
 ├── src/
 │   ├── config/
-│   │   └── index.js            # Configuración centralizada
+│   │   └── index.js              # Configuración centralizada (env vars)
 │   ├── controllers/
-│   │   └── user.controller.js
+│   │   └── user.controller.js    # Lógica de negocio de cada endpoint
 │   ├── middleware/
-│   │   ├── auth.middleware.js   # Verificación JWT
-│   │   ├── error-handler.js    # Middleware centralizado de errores
-│   │   ├── role.middleware.js   # Autorización por roles
-│   │   ├── upload.js           # Configuración de Multer
-│   │   └── validate.js         # Middleware de validación Zod
+│   │   ├── auth.middleware.js    # Verificación JWT
+│   │   ├── error-handler.js      # Middleware centralizado de errores
+│   │   ├── logger.middleware.js  # Logger de peticiones con timestamp
+│   │   ├── role.middleware.js    # Autorización por roles
+│   │   ├── sanitize.middleware.js # Sanitización NoSQL
+│   │   ├── upload.js             # Configuración Multer (5MB máx.)
+│   │   └── validate.js           # Middleware de validación Zod
 │   ├── models/
-│   │   ├── User.js             # Modelo Mongoose (con virtuals e indexes)
-│   │   └── Company.js          # Modelo Mongoose
+│   │   ├── User.js               # Modelo con virtuals, indexes y soft delete
+│   │   └── Company.js            # Modelo de compañía
 │   ├── routes/
-│   │   └── user.routes.js
+│   │   └── user.routes.js        # Definición de rutas
 │   ├── services/
-│   │   └── notification.service.js  # EventEmitter para eventos del usuario
+│   │   └── notification.service.js  # EventEmitter con listeners
 │   ├── utils/
-│   │   └── AppError.js         # Clase de errores personalizada
+│   │   └── AppError.js           # Clase de error con factory methods
 │   ├── validators/
-│   │   └── user.validator.js   # Esquemas Zod (con transform y refine)
-│   ├── app.js                  # Configuración de Express
-│   └── index.js                # Punto de entrada
-├── uploads/                    # Archivos subidos (logo)
+│   │   └── user.validator.js     # Schemas Zod (transform + refine)
+│   ├── app.js                    # Configuración Express + middlewares globales
+│   └── index.js                  # Punto de entrada + conexión MongoDB
+├── uploads/                      # Logos de compañías
 ├── .env
 ├── .env.example
 ├── .gitignore
@@ -264,49 +126,378 @@ bildyapp-api/
 
 ---
 
-## Entrega
+## Endpoints implementados
 
-- **Repositorio de GitHub** con el código fuente.
-- Incluir un fichero **`.env.example`** con las variables de entorno necesarias (sin valores reales).
-- Incluir ficheros **`.http`** o colección de Postman/Thunder Client con ejemplos de cada endpoint.
-- Realizar **commits progresivos** (no subir todo el código de golpe).
-- Incluir un **`README.md`** con instrucciones de instalación y ejecución.
-
----
-
-## Rúbrica (10 puntos)
-
-| Endpoint / Funcionalidad | Puntuación |
-|--------------------------|------------|
-| Registro de usuario (`POST /api/user/register`) | 1 punto |
-| Validación del email (`PUT /api/user/validation`) | 1 punto |
-| Login (`POST /api/user/login`) | 1 punto |
-| Onboarding: datos personales (`PUT /api/user/register`) | 1 punto |
-| Onboarding: crear compañía (`PATCH /api/user/company`) | 1 punto |
-| Logo de la compañía (`PATCH /api/user/logo`) | 1 punto |
-| Obtener usuario con populate (`GET /api/user`) | 1 punto |
-| Gestión de sesión: refresh + logout | 1 punto |
-| Eliminar usuario hard/soft (`DELETE /api/user`) | 1 punto |
-| Invitar compañeros (`POST /api/user/invite`) | 1 punto |
-
-> Además de la funcionalidad de cada endpoint, se evaluará el cumplimiento de los **requisitos técnicos obligatorios**: ESM, async/await, EventEmitter, MVC, Zod (transform/refine), Mongoose (populate/virtuals/indexes), AppError, seguridad, JWT (access + refresh tokens). El incumplimiento de estos requisitos podrá suponer una **penalización de hasta el 30 %** sobre la nota total.
-
-### Bonus (puntos extra)
-
-| Funcionalidad | Puntuación extra |
-|---------------|-----------------|
-| Cambiar contraseña (`PUT /api/user/password`) con `.refine()` para validar que nueva ≠ actual | +0,5 puntos |
-| Zod `discriminatedUnion` para validación condicional del onboarding según `isFreelance` | +0,5 puntos |
+| Método | Ruta | Descripción | Auth |
+|--------|------|-------------|------|
+| POST | `/api/user/register` | Registro de usuario | No |
+| PUT | `/api/user/validation` | Verificación de email | JWT |
+| POST | `/api/user/login` | Login | No |
+| PUT | `/api/user/register` | Onboarding: datos personales | JWT |
+| PATCH | `/api/user/company` | Onboarding: datos de compañía | JWT |
+| PATCH | `/api/user/logo` | Subida de logo | JWT |
+| GET | `/api/user` | Obtener perfil completo | JWT |
+| POST | `/api/user/refresh` | Renovar access token | No |
+| POST | `/api/user/logout` | Cerrar sesión | JWT |
+| DELETE | `/api/user` | Eliminar usuario (hard/soft) | JWT |
+| PUT | `/api/user/password` | Cambiar contraseña (bonus) | JWT |
+| POST | `/api/user/invite` | Invitar compañero como guest | JWT + admin |
 
 ---
 
-## Recursos
+## Pruebas
 
-- [Teoría T1: Introducción a Node.js](../teoria/T1.md)
-- [Teoría T2: Eventos y Asincronía](../teoria/T2.md)
-- [Teoría T3: HTTP y Enrutamiento](../teoria/T3.md)
-- [Teoría T4: Framework Express](../teoria/T4.md)
-- [Teoría T5: MVC y MongoDB con Mongoose](../teoria/T5.md)
-- [Teoría T6: Validación Avanzada y Manejo de Errores](../teoria/T6.md)
-- [Teoría T7: Autenticación y Autorización con JWT](../teoria/T7.md)
-- [Ejemplos de código](../codigo/)
+Las pruebas se realizaron con `curl` desde la terminal siguiendo el flujo completo:
+
+**1. Registro**
+```bash
+curl.exe -X POST 'http://localhost:3000/api/user/register' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"usuario@test.com","password":"12345678"}'
+```
+
+**2. Verificación de email** — el código aparece en la consola del servidor
+```bash
+curl.exe -X PUT 'http://localhost:3000/api/user/validation' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -d '{"code":"<CODIGO_6_DIGITOS>"}'
+```
+
+**3. Login**
+```bash
+curl.exe -X POST 'http://localhost:3000/api/user/login' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"usuario@test.com","password":"12345678"}'
+```
+
+**4. Onboarding datos personales**
+```bash
+curl.exe -X PUT 'http://localhost:3000/api/user/register' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -d '{"name":"Juan","lastName":"Garcia","nif":"12345678A"}'
+```
+
+**5. Onboarding compañía**
+```bash
+curl.exe -X PATCH 'http://localhost:3000/api/user/company' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -d '{"name":"Mi Empresa","cif":"B12345678","address":{"street":"Gran Via","number":"1","postal":"28013","city":"Madrid","province":"Madrid"},"isFreelance":false}'
+```
+
+**6. Subida de logo**
+```bash
+curl.exe -X PATCH 'http://localhost:3000/api/user/logo' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -F 'logo=@/ruta/imagen.jpg'
+```
+
+**7. Obtener perfil**
+```bash
+curl.exe -X GET 'http://localhost:3000/api/user' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>'
+```
+
+**8. Refresh token**
+```bash
+curl.exe -X POST 'http://localhost:3000/api/user/refresh' \
+  -H 'Content-Type: application/json' \
+  -d '{"refreshToken":"<REFRESH_TOKEN>"}'
+```
+
+**9. Logout**
+```bash
+curl.exe -X POST 'http://localhost:3000/api/user/logout' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>'
+```
+
+**10. Eliminar usuario**
+```bash
+# Soft delete
+curl.exe -X DELETE 'http://localhost:3000/api/user?soft=true' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>'
+
+# Hard delete
+curl.exe -X DELETE 'http://localhost:3000/api/user' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>'
+```
+
+**11. Cambiar contraseña (bonus)**
+```bash
+curl.exe -X PUT 'http://localhost:3000/api/user/password' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -d '{"currentPassword":"12345678","newPassword":"87654321"}'
+```
+
+**12. Invitar compañero**
+```bash
+curl.exe -X POST 'http://localhost:3000/api/user/invite' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -d '{"email":"invitado@test.com","password":"12345678"}'
+```
+
+---
+
+## Notas de implementación
+
+- `express-mongo-sanitize` no es compatible con Express 5 — se implementó un middleware de sanitización personalizado equivalente.
+- El `verificationCode` aparece en la consola del servidor al registrarse (simulando el envío por email).
+- El refresh token se rota en cada uso.
+
+</details>
+
+---
+
+<details>
+<summary>English</summary>
+
+## Description
+
+REST API for user management in BildyApp, a delivery note management application. Implements the complete user module: registration, authentication, onboarding, session management and account administration.
+
+---
+
+## Technologies used
+
+| Category | Technology |
+|----------|------------|
+| Runtime | Node.js 22+ with ESM (`"type": "module"`) |
+| Framework | Express 5 |
+| Database | MongoDB Atlas + Mongoose |
+| Validation | Zod (with `.transform()` and `.refine()`) |
+| Authentication | JWT (jsonwebtoken) + bcryptjs |
+| File upload | Multer |
+| Security | Helmet, express-rate-limit, NoSQL sanitization |
+| Events | EventEmitter (native Node.js) |
+| Errors | AppError class + centralized middleware |
+
+---
+
+## Prerequisites
+
+- Node.js 22 or higher
+- MongoDB Atlas account with a cluster created
+
+---
+
+## Installation
+
+```bash
+# 1. Clone the repository
+git clone <REPO_URL>
+cd practica-intermedia
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure environment variables
+cp .env.example .env
+# Edit .env with your real values
+```
+
+---
+
+## Environment variables
+
+Create a `.env` file in the project root with the following variables:
+
+```env
+MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/<db_name>
+SERVER_PORT=3000
+ACCESS_TOKEN_SECRET=<long_random_string>
+REFRESH_TOKEN_SECRET=<different_random_string>
+ACCESS_TOKEN_EXPIRATION=15m
+REFRESH_TOKEN_EXPIRATION=7d
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW=900000
+```
+
+To generate secure JWT secrets:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
+
+---
+
+## Running the server
+
+```bash
+npm run dev
+```
+
+When started successfully you will see:
+```
+Conexión exitosa a MongoDB
+Servidor corriendo en el puerto 3000
+```
+
+---
+
+## Project structure
+
+```
+practica-intermedia/
+├── src/
+│   ├── config/
+│   │   └── index.js              # Centralized configuration (env vars)
+│   ├── controllers/
+│   │   └── user.controller.js    # Business logic for each endpoint
+│   ├── middleware/
+│   │   ├── auth.middleware.js    # JWT verification
+│   │   ├── error-handler.js      # Centralized error middleware
+│   │   ├── logger.middleware.js  # Request logger with timestamp
+│   │   ├── role.middleware.js    # Role-based authorization
+│   │   ├── sanitize.middleware.js # NoSQL sanitization
+│   │   ├── upload.js             # Multer configuration (5MB max)
+│   │   └── validate.js           # Zod validation middleware
+│   ├── models/
+│   │   ├── User.js               # Model with virtuals, indexes and soft delete
+│   │   └── Company.js            # Company model
+│   ├── routes/
+│   │   └── user.routes.js        # Route definitions
+│   ├── services/
+│   │   └── notification.service.js  # EventEmitter with lifecycle listeners
+│   ├── utils/
+│   │   └── AppError.js           # Error class with factory methods
+│   ├── validators/
+│   │   └── user.validator.js     # Zod schemas (transform + refine)
+│   ├── app.js                    # Express config + global middlewares
+│   └── index.js                  # Entry point + MongoDB connection
+├── uploads/                      # Company logos
+├── .env
+├── .env.example
+├── .gitignore
+├── package.json
+└── README.md
+```
+
+---
+
+## Implemented endpoints
+
+| Method | Route | Description | Auth |
+|--------|-------|-------------|------|
+| POST | `/api/user/register` | User registration | No |
+| PUT | `/api/user/validation` | Email verification with 6-digit code | JWT |
+| POST | `/api/user/login` | Login | No |
+| PUT | `/api/user/register` | Onboarding: personal data | JWT |
+| PATCH | `/api/user/company` | Onboarding: company data | JWT |
+| PATCH | `/api/user/logo` | Company logo upload | JWT |
+| GET | `/api/user` | Get full profile with populated Company | JWT |
+| POST | `/api/user/refresh` | Renew access token | No |
+| POST | `/api/user/logout` | Logout | JWT |
+| DELETE | `/api/user` | Delete user (hard/soft) | JWT |
+| PUT | `/api/user/password` | Change password (bonus) | JWT |
+| POST | `/api/user/invite` | Invite colleague as guest | JWT + admin |
+
+---
+
+## Testing
+
+Tests were performed using `curl` from the terminal following the complete user flow:
+
+**1. Register**
+```bash
+curl.exe -X POST 'http://localhost:3000/api/user/register' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user@test.com","password":"12345678"}'
+```
+
+**2. Verify email** — verification code appears in the server console
+```bash
+curl.exe -X PUT 'http://localhost:3000/api/user/validation' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -d '{"code":"<6_DIGIT_CODE>"}'
+```
+
+**3. Login**
+```bash
+curl.exe -X POST 'http://localhost:3000/api/user/login' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user@test.com","password":"12345678"}'
+```
+
+**4. Onboarding personal data**
+```bash
+curl.exe -X PUT 'http://localhost:3000/api/user/register' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -d '{"name":"John","lastName":"Doe","nif":"12345678A"}'
+```
+
+**5. Onboarding company**
+```bash
+curl.exe -X PATCH 'http://localhost:3000/api/user/company' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -d '{"name":"My Company","cif":"B12345678","address":{"street":"Main St","number":"1","postal":"28013","city":"Madrid","province":"Madrid"},"isFreelance":false}'
+```
+
+**6. Upload logo**
+```bash
+curl.exe -X PATCH 'http://localhost:3000/api/user/logo' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -F 'logo=@/path/to/image.jpg'
+```
+
+**7. Get profile**
+```bash
+curl.exe -X GET 'http://localhost:3000/api/user' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>'
+```
+
+**8. Refresh token**
+```bash
+curl.exe -X POST 'http://localhost:3000/api/user/refresh' \
+  -H 'Content-Type: application/json' \
+  -d '{"refreshToken":"<REFRESH_TOKEN>"}'
+```
+
+**9. Logout**
+```bash
+curl.exe -X POST 'http://localhost:3000/api/user/logout' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>'
+```
+
+**10. Delete user**
+```bash
+# Soft delete
+curl.exe -X DELETE 'http://localhost:3000/api/user?soft=true' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>'
+
+# Hard delete
+curl.exe -X DELETE 'http://localhost:3000/api/user' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>'
+```
+
+**11. Change password (bonus)**
+```bash
+curl.exe -X PUT 'http://localhost:3000/api/user/password' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -d '{"currentPassword":"12345678","newPassword":"87654321"}'
+```
+
+**12. Invite colleague**
+```bash
+curl.exe -X POST 'http://localhost:3000/api/user/invite' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -d '{"email":"guest@test.com","password":"12345678"}'
+```
+
+---
+
+## Implementation notes
+
+- `express-mongo-sanitize` is not compatible with Express 5 — a custom equivalent sanitization middleware was implemented instead.
+- The `verificationCode` appears in the server console upon registration (simulating email delivery).
+- The refresh token is rotated on every use — each call to `/refresh` returns a new token pair.
+
+</details>

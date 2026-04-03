@@ -1,0 +1,258 @@
+# BildyApp API — Ejemplos de endpoints
+# Usar con la extensión REST Client de VS Code
+# o con cualquier cliente compatible con ficheros .http
+
+@baseUrl = http://localhost:3000/api/user
+@accessToken = b03bf10262e5c9bbe3c02e98240ac4d4f1faec209722d3db61d4608e3e2af5cd7734fcb64721cf351c84b621c4218f15735611962fa68c7254565a55b48c061e
+@refreshToken = 380de5a5b37d6db1ec9de5c41043d9bd13155ecbe5cb26e23e0f9b467e0988a58ef14bb294de7621804df00542898915d329ce5ef6f7553d188876275b6c82c5
+
+###############################################
+# 1. REGISTRO DE USUARIO
+# POST /api/user/register
+# No requiere autenticación
+# Devuelve: accessToken, refreshToken y datos del usuario
+###############################################
+
+POST {{baseUrl}}/register
+Content-Type: application/json
+
+{
+  "email": "usuario@test.com",
+  "password": "12345678"
+}
+
+###############################################
+# 2. VERIFICACIÓN DE EMAIL
+# PUT /api/user/validation
+# Requiere: JWT en cabecera Authorization
+# El código de 6 dígitos aparece en la consola del servidor
+###############################################
+
+PUT {{baseUrl}}/validation
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "code": "123456"
+}
+
+###############################################
+# 3. LOGIN
+# POST /api/user/login
+# No requiere autenticación
+# Devuelve: accessToken, refreshToken y datos del usuario
+###############################################
+
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "email": "usuario@test.com",
+  "password": "12345678"
+}
+
+###############################################
+# 4a. ONBOARDING — DATOS PERSONALES
+# PUT /api/user/register
+# Requiere: JWT en cabecera Authorization
+# Actualiza nombre, apellidos y NIF del usuario
+###############################################
+
+PUT {{baseUrl}}/register
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "name": "Juan",
+  "lastName": "Garcia",
+  "nif": "12345678A"
+}
+
+###############################################
+# 4b. ONBOARDING — DATOS DE COMPAÑÍA
+# PATCH /api/user/company
+# Requiere: JWT en cabecera Authorization
+# Si el CIF no existe → crea nueva Company (role: admin)
+# Si el CIF ya existe → se une a esa Company (role: guest)
+# Si isFreelance: true → usa NIF del usuario como CIF
+###############################################
+
+PATCH {{baseUrl}}/company
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "name": "Mi Empresa S.L.",
+  "cif": "B12345678",
+  "isFreelance": false,
+  "address": {
+    "street": "Gran Via",
+    "number": "1",
+    "postal": "28013",
+    "city": "Madrid",
+    "province": "Madrid"
+  }
+}
+
+###############################################
+# 4b (alternativa). ONBOARDING — AUTÓNOMO
+# PATCH /api/user/company
+# Con isFreelance: true los datos de la empresa
+# se toman de los datos personales del usuario
+###############################################
+
+PATCH {{baseUrl}}/company
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "name": "Juan Garcia Autónomo",
+  "cif": "12345678A",
+  "isFreelance": true,
+  "address": {
+    "street": "Calle Mayor",
+    "number": "5",
+    "postal": "28001",
+    "city": "Madrid",
+    "province": "Madrid"
+  }
+}
+
+###############################################
+# 5. LOGO DE LA COMPAÑÍA
+# PATCH /api/user/logo
+# Requiere: JWT en cabecera Authorization
+# Enviar como multipart/form-data con campo "logo"
+# Tamaño máximo: 5MB
+# Nota: los clientes .http no soportan multipart bien,
+# usar curl para esta prueba:
+#
+# curl.exe -X PATCH 'http://localhost:3000/api/user/logo' \
+#   -H 'Authorization: Bearer <TOKEN>' \
+#   -F 'logo=@/ruta/imagen.jpg'
+###############################################
+
+PATCH {{baseUrl}}/logo
+Authorization: Bearer {{accessToken}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="logo"; filename="logo.jpg"
+Content-Type: image/jpeg
+
+< ./logo.jpg
+--boundary--
+
+###############################################
+# 6. OBTENER PERFIL DE USUARIO
+# GET /api/user
+# Requiere: JWT en cabecera Authorization
+# Devuelve: datos completos con Company (populate) y fullName (virtual)
+###############################################
+
+GET {{baseUrl}}/
+Authorization: Bearer {{accessToken}}
+
+###############################################
+# 7a. REFRESH TOKEN
+# POST /api/user/refresh
+# No requiere autenticación
+# Rota el refresh token — devuelve nuevos access y refresh tokens
+###############################################
+
+POST {{baseUrl}}/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+###############################################
+# 7b. LOGOUT
+# POST /api/user/logout
+# Requiere: JWT en cabecera Authorization
+# Devuelve: confirmación de cierre de sesión
+###############################################
+
+POST {{baseUrl}}/logout
+Authorization: Bearer {{accessToken}}
+
+###############################################
+# 8a. ELIMINAR USUARIO — SOFT DELETE
+# DELETE /api/user?soft=true
+# Requiere: JWT en cabecera Authorization
+# Marca el usuario como deleted: true (no lo elimina de la BD)
+###############################################
+
+DELETE {{baseUrl}}/?soft=true
+Authorization: Bearer {{accessToken}}
+
+###############################################
+# 8b. ELIMINAR USUARIO — HARD DELETE
+# DELETE /api/user
+# Requiere: JWT en cabecera Authorization
+# Elimina el usuario permanentemente de la base de datos
+###############################################
+
+DELETE {{baseUrl}}/
+Authorization: Bearer {{accessToken}}
+
+###############################################
+# 9. CAMBIAR CONTRASEÑA (BONUS)
+# PUT /api/user/password
+# Requiere: JWT en cabecera Authorization
+# Zod .refine() valida que newPassword !== currentPassword
+###############################################
+
+PUT {{baseUrl}}/password
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "currentPassword": "12345678",
+  "newPassword": "87654321"
+}
+
+###############################################
+# 9 (error esperado). CONTRASEÑAS IGUALES
+# Debe devolver 400 con mensaje de Zod .refine()
+###############################################
+
+PUT {{baseUrl}}/password
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "currentPassword": "12345678",
+  "newPassword": "12345678"
+}
+
+###############################################
+# 10. INVITAR COMPAÑERO
+# POST /api/user/invite
+# Requiere: JWT + role admin
+# Crea un nuevo usuario con role guest y misma company que el admin
+###############################################
+
+POST {{baseUrl}}/invite
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "email": "invitado@test.com",
+  "password": "12345678"
+}
+
+###############################################
+# 10 (error esperado). INVITAR SIN SER ADMIN
+# Debe devolver 403 Forbidden
+###############################################
+
+POST {{baseUrl}}/invite
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "email": "otro@test.com",
+  "password": "12345678"
+}
