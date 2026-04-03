@@ -1,8 +1,10 @@
 import { Router } from 'express';
-import { register , verifyEmail, login, updatePersonalData, updateCompany} from '../controllers/user.controller.js';
+import { register , verifyEmail, login, updatePersonalData, updateCompany, updateLogo} from '../controllers/user.controller.js';
 import { validate } from '../middleware/validate.js';
 import { registerSchema, verificationSchema , loginSchema, personalDataSchema, companySchema} from '../validators/user.validator.js'
 import { authMiddleware } from '../middleware/auth.middleware.js';
+import upload from '../middleware/upload.js'
+
 
 const router = Router();
 
@@ -17,9 +19,8 @@ router.put('/register', authMiddleware, validate(personalDataSchema), updatePers
 
 router.patch('/company', authMiddleware, validate(companySchema), updateCompany);
 
-router.patch('/logo', (req, res) => {
-    res.json({ message: 'Logo actualizado' });
-});
+router.patch('/logo', authMiddleware, upload.single('logo'), updateLogo);
+
 
 router.get('/', (req, res) => {
     res.json({ message: 'Información del usuario' });

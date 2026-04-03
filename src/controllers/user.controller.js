@@ -208,3 +208,34 @@ export const updateCompany = async (req, res, next) => {
         next(error);
     }
 };
+
+export const updateLogo = async (req, res, next) => {
+    try {
+        // buscamos el usuario por id
+        const { userId } = req.user;
+        const user = await User.findById(userId).populate('company');
+
+        // Comprobamos que el usuario y la empresa existen
+        if (!user) {
+            return next(AppError.notFound('Usuario'));
+        }
+        if (!user.company) {
+            return next(AppError.notFound('Empresa'));
+        }
+        if (!req.file) {
+            return next(AppError.notFound('Imagen'));
+        }
+        // Actualizamos el logo de la empresa
+        user.company.logo = req.file.path; // Asumiendo que el middleware de subida de archivos guarda la ruta en req.file.path
+        await user.company.save();
+
+
+        // Devolvemos la nueva información del usuario
+        notificationService.emit('user:updated', user);
+        res.json({
+            logo: user.company.logo
+        });
+    } catch (error) {
+        next(error);
+    }
+}; 
