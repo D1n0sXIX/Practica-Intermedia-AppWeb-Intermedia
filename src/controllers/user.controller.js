@@ -344,7 +344,7 @@ export const inviteUser = async (req, res, next) => {
         // Guardamos el usuario y emitimos evento
         await user.save();
         notificationService.emit('user:invited', user);
-
+        
         // Devolvemos datos del usuario
         res.status(201).json({
             user: {
