@@ -128,7 +128,7 @@ export const updatePersonalData = async (req, res, next) => {
         const { name, lastName, nif } = req.body;
 
         // buscamos el usuario por id
-        const user = await User.findByIdAndUpdate(userId, { name, lastName, nif }, { new: true });
+        const user = await User.findByIdAndUpdate(userId, { name, lastName, nif }, { returnDocument: 'after' });
         if (!user) {
             return next(AppError.notFound('Usuario'));
         }
