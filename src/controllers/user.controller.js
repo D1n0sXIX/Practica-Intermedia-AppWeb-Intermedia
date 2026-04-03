@@ -358,3 +358,34 @@ export const inviteUser = async (req, res, next) => {
         next(error);
     }
 };
+
+export const updatePassword = async (req, res, next) => {
+    try {
+        // obtenemos JWT y validamos
+        const { userId } = req.user;
+        const { currentPassword, newPassword } = req.body;
+
+        // buscamos el usuario por id
+        const user = await User.findById(userId);
+        if (!user) {
+            return next(AppError.notFound('Usuario'));
+        }
+        // Verificamos con changePassworsSchema que la contraseña actual es correcta
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return next(AppError.unauthorized('Contraseña actual incorrecta'));
+        }
+
+        // Encriptamos la nueva contraseña
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        // Devolvemos mensaje de éxito
+        notificationService.emit('user:updated', user);
+        res.json({ message: 'Contraseña actualizada correctamente' });
+    }
+    catch (error) {
+        next(error);
+    }
+};  
