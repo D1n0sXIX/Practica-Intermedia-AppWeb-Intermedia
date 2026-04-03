@@ -28,4 +28,9 @@ emitter.on('user:updated', (data) => {
     console.log('Usuario actualizado:', data)
 })
 
+emitter.on('user:fetched', (data) => {
+    console.log('Usuario consultado:', data)
+})
+
+
 export default emitter

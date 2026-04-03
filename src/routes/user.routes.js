@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register , verifyEmail, login, updatePersonalData, updateCompany, updateLogo} from '../controllers/user.controller.js';
+import { register , verifyEmail, login, updatePersonalData, updateCompany, updateLogo, getUser} from '../controllers/user.controller.js';
 import { validate } from '../middleware/validate.js';
 import { registerSchema, verificationSchema , loginSchema, personalDataSchema, companySchema} from '../validators/user.validator.js'
 import { authMiddleware } from '../middleware/auth.middleware.js';
@@ -22,9 +22,7 @@ router.patch('/company', authMiddleware, validate(companySchema), updateCompany)
 router.patch('/logo', authMiddleware, upload.single('logo'), updateLogo);
 
 
-router.get('/', (req, res) => {
-    res.json({ message: 'Información del usuario' });
-});
+router.get('/', authMiddleware, getUser);
 
 router.post('/refresh', (req, res) => {
     res.json({ message: 'Token renovado' });

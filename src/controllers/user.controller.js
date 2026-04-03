@@ -5,6 +5,7 @@ import { config } from '../config/index.js';
 import { AppError } from '../utils/AppError.js';
 import notificationService from '../services/notification.service.js';
 import Company from '../models/Company.js'
+import { tr } from 'zod/v4/locales';
 
 export const register = async (req, res, next) => {
     try {
@@ -236,6 +237,35 @@ export const updateLogo = async (req, res, next) => {
             logo: user.company.logo
         });
     } catch (error) {
+        next(error);
+    }
+};
+
+export const getUser = async (req, res, next) => {
+    try {
+        // obtenemos JWT y validamos
+        const { userId } = req.user;
+        // buscamos el usuario por id
+        const user = await User.findById(userId).populate('company');
+        if (!user) {
+            return next(AppError.notFound('Usuario'));
+        }
+        // Devolvemos datos
+        notificationService.emit('user:fetched', user);
+        res.json({
+            user: {
+                id: user._id,
+                fullName: user.fullName,
+                email: user.email,
+                name: user.name,
+                lastName: user.lastName,
+                nif: user.nif,
+                role: user.role,
+                status: user.status,
+                company: user.company
+            }
+        });
+    }    catch (error) {
         next(error);
     }
 }; 
